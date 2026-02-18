@@ -10,9 +10,10 @@ from typing import Optional
 import pandas as pd
 import typer
 
+from .analyst_panel import compute_analyst_weekly_dataset
 from .config import config_hash, ensure_dir, load_config, parse_date, resolve_api_key
 from .consensus import compute_weekly_dataset
-from .export import export_csv as export_weekly_csv
+from .export import export_analyst_csv, export_csv as export_weekly_csv
 from .fmp_client import FMPRequestConfig, fetch_fmp_price_targets
 from .prices import fetch_prices_for_universe
 from .reporting import generate_spot_check_report
@@ -310,6 +311,66 @@ def compute_weekly_cmd(
     typer.echo(f"Computed weekly dataset with {len(weekly)} rows")
 
 
+@app.command("compute-analyst-weekly")
+def compute_analyst_weekly_cmd(
+    pred_start: str = typer.Option("2023-02-18", help="Prediction window start date"),
+    pred_end: str = typer.Option("2025-02-18", help="Prediction window end date"),
+    actual_start: str = typer.Option("2024-02-18", help="Actual window start date"),
+    actual_end: str = typer.Option("2026-02-18", help="Actual window end date"),
+    ttl_days: int = typer.Option(365, help="Target TTL"),
+    calendar: str = typer.Option("XNYS", help="Trading calendar"),
+    horizon_days: int = typer.Option(252, help="Horizon in trading days"),
+    universe: str = typer.Option("data/universe/universe_union.csv", help="Universe CSV path"),
+    events: str = typer.Option("data/derived/target_events.parquet", help="Selected events parquet"),
+    provider_selection: str = typer.Option("data/derived/provider_selection.csv", help="Provider selection CSV"),
+    price_dir: str = typer.Option("data/raw/prices", help="Raw prices directory"),
+    split_dir: str = typer.Option("data/raw/splits", help="Raw splits directory"),
+    out: str = typer.Option("data/derived/analyst_weekly_targets.parquet", help="Output parquet"),
+    manifest_out: str = typer.Option("data/derived/analyst_run_manifest.json", help="Run manifest output path"),
+) -> None:
+    universe_df = _read_universe(universe)
+    events_df = pd.read_parquet(events) if Path(events).exists() else pd.DataFrame()
+    provider_df = pd.read_csv(provider_selection) if Path(provider_selection).exists() else pd.DataFrame()
+
+    analyst_weekly = compute_analyst_weekly_dataset(
+        universe=universe_df,
+        events=events_df,
+        provider_selection=provider_df,
+        price_dir=price_dir,
+        split_dir=split_dir,
+        pred_start=parse_date(pred_start),
+        pred_end=parse_date(pred_end),
+        actual_start=parse_date(actual_start),
+        actual_end=parse_date(actual_end),
+        ttl_days=ttl_days,
+        calendar=calendar,
+        horizon_days=horizon_days,
+    )
+
+    out_path = Path(out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    analyst_weekly.to_parquet(out_path, index=False)
+
+    manifest_payload = {
+        "computed_at": date.today().isoformat(),
+        "pred_start": pred_start,
+        "pred_end": pred_end,
+        "actual_start": actual_start,
+        "actual_end": actual_end,
+        "ttl_days": ttl_days,
+        "calendar": calendar,
+        "horizon_days": horizon_days,
+        "rows": int(len(analyst_weekly)),
+        "git_commit": _git_commit(),
+    }
+    manifest_payload["config_hash"] = config_hash(manifest_payload)
+    manifest_path = Path(manifest_out)
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps(manifest_payload, indent=2), encoding="utf-8")
+
+    typer.echo(f"Computed analyst weekly dataset with {len(analyst_weekly)} rows")
+
+
 @app.command("spot-check-report")
 def spot_check_report_cmd(
     tickers: str = typer.Option(..., help="Comma-separated tickers"),
@@ -331,6 +392,21 @@ def export_csv_cmd(
 ) -> None:
     output = export_weekly_csv(source, out, required_only=required_only)
     typer.echo(f"Exported {len(output)} rows to {out}")
+
+
+@app.command("export-analyst-csv")
+def export_analyst_csv_cmd(
+    out: str = typer.Option(
+        "exports/analyst_targets_backtest_2023-02-18_2025-02-18.csv",
+        help="Output CSV path",
+    ),
+    source: str = typer.Option(
+        "data/derived/analyst_weekly_targets.parquet",
+        help="Analyst weekly parquet source",
+    ),
+) -> None:
+    output = export_analyst_csv(source, out)
+    typer.echo(f"Exported {len(output)} analyst rows to {out}")
 
 
 def main() -> None:

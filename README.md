@@ -42,6 +42,53 @@ Supporting logic:
 - Horizon logic = `+252` trading sessions using exchange trading days.
 - Price basis = raw close values transformed by split-only adjustment to a common end-date basis.
 
+## Analyst-focused variant
+
+This project also supports an analyst-level panel with one row per active `analyst_key + ticker + week`.
+
+### Analyst commands
+
+1. Compute analyst weekly panel:
+
+```bash
+past-predictions compute-analyst-weekly \
+  --pred-start 2023-02-18 \
+  --pred-end 2025-02-18 \
+  --actual-start 2024-02-18 \
+  --actual-end 2026-02-18 \
+  --ttl-days 365 \
+  --calendar XNYS \
+  --horizon-days 252 \
+  --out data/derived/analyst_weekly_targets.parquet
+```
+
+2. Export analyst CSV:
+
+```bash
+past-predictions export-analyst-csv \
+  --source data/derived/analyst_weekly_targets.parquet \
+  --out exports/analyst_targets_backtest_2023-02-18_2025-02-18.csv
+```
+
+### Analyst output columns
+
+- `ticker`: Canonical ticker symbol.
+- `date`: Weekly as-of trading date in the prediction window.
+- `analyst_key`: Normalized analyst/firm identifier used for latest-in-force tracking.
+- `predicted`: Analyst target in force at `date`, split-adjusted to common basis.
+- `actual`: Split-adjusted close price at `date`.
+- `actual_12m`: Split-adjusted close at `date + 252` trading sessions.
+- `error_12m`: `actual_12m - predicted`.
+- `abs_error_12m`: `abs(error_12m)`.
+- `hit_direction`: `true` when implied direction (`predicted - actual`) matches realized direction (`actual_12m - actual`).
+- `data_quality_flags`: Deterministic semicolon-separated flags.
+
+Analyst window semantics:
+
+- Prediction sampling window: `2023-02-18` to `2025-02-18`.
+- Realized window enforcement: keep rows only when the horizon date for `actual_12m` falls in `2024-02-18` to `2026-02-18`.
+- Empty analyst rows are excluded (only active in-force analyst predictions are emitted).
+
 ## Install
 
 ```bash
@@ -135,7 +182,10 @@ past-predictions plan-fmp-fallback \
 - `data/derived/target_events.parquet`
 - `data/derived/weekly_targets.parquet`
 - `data/derived/run_manifest.json`
+- `data/derived/analyst_weekly_targets.parquet`
+- `data/derived/analyst_run_manifest.json`
 - `exports/targets_weekly_backtest_{start}_{end}.csv`
+- `exports/analyst_targets_backtest_{pred_start}_{pred_end}.csv`
 
 ## Data quality flags
 
