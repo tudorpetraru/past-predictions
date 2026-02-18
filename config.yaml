@@ -1,0 +1,31 @@
+run:
+  start_date: "2024-02-18"
+  end_date: "2026-02-18"
+  calendar: "XNYS"
+
+providers:
+  fmp:
+    base_url: "https://financialmodelingprep.com"
+    api_key_env: "FMP_KEY"
+    daily_call_limit: 250
+    reserve_calls: 10
+    timeout_seconds: 25
+    max_retries: 5
+    backoff_seconds: 1.0
+  yahoo:
+    workers: 8
+
+consensus:
+  ttl_days: 365
+  min_analysts: 3
+  horizon_trading_days: 252
+
+paths:
+  universe_dir: "data/universe"
+  raw_dir: "data/raw"
+  derived_dir: "data/derived"
+  exports_dir: "exports"
+  plans_dir: "data/plans"
+
+flags:
+  include_eval_columns: true
