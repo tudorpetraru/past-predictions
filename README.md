@@ -20,6 +20,28 @@ A deterministic weekly backtest dataset with:
 
 Default window is `2024-02-18` to `2026-02-18`.
 
+## Column definitions
+
+Final CSV columns (`exports/targets_weekly_backtest_{start}_{end}.csv`):
+
+- `ticker`: Canonical ticker symbol in dot format (for example `BRK.B`).
+- `date`: Weekly as-of trading date (`YYYY-MM-DD`), defined as Friday or the last trading day of that week on `XNYS`.
+- `predicted_min`: Minimum active analyst target at `date` (after split adjustment to common basis).
+- `predicted_avg`: Mean active analyst target at `date` (after split adjustment to common basis).
+- `predicted_max`: Maximum active analyst target at `date` (after split adjustment to common basis).
+- `actual`: Split-adjusted close price on `date`.
+- `actual_12m`: Split-adjusted close price at `date + 252` trading sessions (12-month proxy).
+- `error_avg_12m`: `actual_12m - predicted_avg`.
+- `hit_within_range_12m`: `true` when `predicted_min <= actual_12m <= predicted_max`, else `false` (or empty if inputs are missing).
+- `n_analysts`: Number of active analysts contributing targets on `date` after latest-per-analyst and TTL filtering.
+- `data_quality_flags`: Semicolon-separated flags describing source and data quality conditions for the row.
+
+Supporting logic:
+
+- Active target set = latest target per `analyst_key` on/before `date`, with TTL default `365` days.
+- Horizon logic = `+252` trading sessions using exchange trading days.
+- Price basis = raw close values transformed by split-only adjustment to a common end-date basis.
+
 ## Install
 
 ```bash
